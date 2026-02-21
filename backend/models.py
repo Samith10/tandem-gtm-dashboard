@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import datetime
 from enum import Enum
 from typing import Optional
@@ -28,18 +30,18 @@ class Provider(SQLModel, table=True):
 
     # NPI registry fields
     npi: str = Field(index=True, unique=True)
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    organization_name: Optional[str] = None
-    npi_type: int = Field(description="1 = individual, 2 = organization")
-    taxonomy_code: Optional[str] = None
-    taxonomy_description: Optional[str] = None
-    address_line: Optional[str] = None
-    city: Optional[str] = None
-    state: Optional[str] = None
-    zip_code: Optional[str] = None
-    phone: Optional[str] = None
-    enumeration_date: Optional[str] = None  # raw string from NPI API
+    first_name: Optional[str] = Field(default=None)
+    last_name: Optional[str] = Field(default=None)
+    organization_name: Optional[str] = Field(default=None)
+    npi_type: int = Field()
+    taxonomy_code: Optional[str] = Field(default=None)
+    taxonomy_description: Optional[str] = Field(default=None)
+    address_line: Optional[str] = Field(default=None)
+    city: Optional[str] = Field(default=None)
+    state: Optional[str] = Field(default=None)
+    zip_code: Optional[str] = Field(default=None)
+    phone: Optional[str] = Field(default=None)
+    enumeration_date: Optional[str] = Field(default=None)
 
     # Enrichment fields
     icp_score: int = Field(default=0)
@@ -47,14 +49,14 @@ class Provider(SQLModel, table=True):
 
     # Pipeline fields
     stage: PipelineStage = Field(default=PipelineStage.DISCOVERED)
-    assigned_rep: Optional[str] = None
-    workflow_tags: str = Field(default="")  # comma-separated WorkflowTag values
+    assigned_rep: Optional[str] = Field(default=None)
+    workflow_tags: str = Field(default="")
     last_stage_change: datetime = Field(default_factory=datetime.utcnow)
     discovered_at: datetime = Field(default_factory=datetime.utcnow)
 
     # Outreach fields
-    last_outreach_at: Optional[datetime] = None
-    outreach_copy: Optional[str] = None
+    last_outreach_at: Optional[datetime] = Field(default=None)
+    outreach_copy: Optional[str] = Field(default=None)
 
 
 # -- Response schemas (not persisted) --
@@ -105,10 +107,10 @@ class PipelineSummary(SQLModel):
 class WorkflowEvent(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     provider_npi: str = Field(index=True)
-    rule_name: str
-    tag_applied: Optional[str] = None
+    rule_name: str = Field()
+    tag_applied: Optional[str] = Field(default=None)
     triggered_at: datetime = Field(default_factory=datetime.utcnow)
-    detail: Optional[str] = None
+    detail: Optional[str] = Field(default=None)
 
 
 class WorkflowEventRead(SQLModel):
@@ -120,12 +122,12 @@ class WorkflowEventRead(SQLModel):
     detail: Optional[str]
 
 
-# -- Analytics schema --
+# -- Analytics schemas --
 
 class FunnelMetrics(SQLModel):
     stage: PipelineStage
     count: int
-    drop_off_rate: Optional[float]  # percentage lost vs. previous stage
+    drop_off_rate: Optional[float]
 
 
 class DashboardSummary(SQLModel):
