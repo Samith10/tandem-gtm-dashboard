@@ -14,6 +14,9 @@ const COLUMN_CONFIG: Record<PipelineStage, { accent: string; bg: string }> = {
   "Activated":     { accent: "#16a34a", bg: "#f0fdf4" },
 };
 
+// Default cap per column -- top N by ICP score
+const DEFAULT_CAP = 25;
+
 function ScoreDot({ score }: { score: number }) {
   const color = score >= 70 ? "#16a34a" : score >= 50 ? "#d97706" : "#dc2626";
   return (
@@ -56,7 +59,6 @@ function ProviderCard({ provider, onStageChange, onOutreach }: {
 
   return (
     <div style={{ background: "#ffffff", border: "1px solid #e8e8e4", borderRadius: 5, padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
-      {/* Name + score */}
       <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
         <ScoreDot score={provider.icp_score} />
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -72,17 +74,14 @@ function ProviderCard({ provider, onStageChange, onOutreach }: {
         </span>
       </div>
 
-      {/* Location */}
       {(provider.city || provider.state) && (
         <p className="mono text-2xs text-text-muted">
           {[provider.city, provider.state].filter(Boolean).join(", ")}
         </p>
       )}
 
-      {/* Tags */}
       <Tags tags={provider.workflow_tags} />
 
-      {/* Actions */}
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4, paddingTop: 8, borderTop: "1px solid #f0f0ec" }}>
         {currentIdx > 0 && (
           <button
@@ -125,13 +124,19 @@ function Column({ stage, providers, onStageChange, onOutreach }: {
   onStageChange: (p: Provider, stage: PipelineStage) => void;
   onOutreach: (p: Provider) => void;
 }) {
+  const [showAll, setShowAll] = useState(false);
   const cfg = COLUMN_CONFIG[stage];
   const staleCount = providers.filter((p) => p.workflow_tags.includes("STALE")).length;
+
+  // Sort by score desc, cap at DEFAULT_CAP unless expanded
+  const sorted = [...providers].sort((a, b) => b.icp_score - a.icp_score);
+  const visible = showAll ? sorted : sorted.slice(0, DEFAULT_CAP);
+  const hidden = sorted.length - DEFAULT_CAP;
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
       {/* Column header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", borderRadius: 5, background: cfg.bg, marginBottom: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 12px", borderRadius: 5, background: cfg.bg, marginBottom: 8, flexShrink: 0 }}>
         <span className="font-sans text-xs font-semibold" style={{ color: cfg.accent }}>{stage}</span>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {staleCount > 0 && <span className="tag tag-stale">{staleCount} stale</span>}
@@ -146,14 +151,26 @@ function Column({ stage, providers, onStageChange, onOutreach }: {
             <p className="mono text-2xs text-text-muted">Empty</p>
           </div>
         ) : (
-          providers.map((p) => (
-            <ProviderCard
-              key={p.id}
-              provider={p}
-              onStageChange={onStageChange}
-              onOutreach={onOutreach}
-            />
-          ))
+          <>
+            {visible.map((p) => (
+              <ProviderCard
+                key={p.id}
+                provider={p}
+                onStageChange={onStageChange}
+                onOutreach={onOutreach}
+              />
+            ))}
+            {/* Show all / collapse toggle */}
+            {sorted.length > DEFAULT_CAP && (
+              <button
+                onClick={() => setShowAll((v) => !v)}
+                className="mono text-2xs text-text-muted border border-border rounded hover:border-text-muted transition-colors"
+                style={{ padding: "6px", textAlign: "center", background: "#ffffff" }}
+              >
+                {showAll ? "Show less" : `Show ${hidden} more`}
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -169,7 +186,7 @@ export default function PipelinePage() {
   async function load() {
     setLoading(true);
     try {
-      const data = await listProviders({ limit: 500 });
+      const data = await listProviders({ limit: 5000 });
       setProviders(data);
     } finally {
       setLoading(false);

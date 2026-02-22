@@ -1,4 +1,3 @@
-# This module handles fetching provider data from the NPI registry - V2.1
 import httpx
 from sqlmodel import Session, select
 from typing import Optional
@@ -7,9 +6,10 @@ from models import Provider, PipelineStage
 from services.scoring import score_provider
 
 NPI_API_URL = "https://npiregistry.cms.hhs.gov/api/"
-DEFAULT_LIMIT = 50
+DEFAULT_LIMIT = 200
+DEFAULT_STATES = ["NY", "CA", "TX", "FL", "IL", "PA", "NJ"]
 
-# Specialties to query -- one request per specialty, results merged
+# Specialties to query -- one request per specialty per state
 TARGET_TAXONOMIES = [
     "Family Medicine",
     "Internal Medicine",
@@ -46,13 +46,11 @@ def _parse_provider(raw: dict) -> Optional[dict]:
         return None
 
     enumeration_type = raw.get("enumeration_type", "NPI-1")
-    # "NPI-1" -> 1, "NPI-2" -> 2
     npi_type = int(enumeration_type.replace("NPI-", ""))
 
     taxonomy_code, taxonomy_description = _extract_taxonomy(taxonomies)
     address = _extract_address(addresses)
 
-    # For orgs (NPI-2), store the authorized official as the contact name
     if npi_type == 2:
         first_name = basic.get("authorized_official_first_name")
         last_name = basic.get("authorized_official_last_name")
@@ -110,28 +108,30 @@ def _fetch_raw(taxonomy: str, state: str, limit: int) -> list[dict]:
 
 def fetch_and_store_providers(
     session: Session,
-    state: str = "NY",
+    states: list[str] = None,
     taxonomy_description: Optional[str] = None,
     limit: int = DEFAULT_LIMIT,
 ) -> list[Provider]:
     """
     Fetch providers from the NPI registry, score them, and upsert into the DB.
-    Queries each target taxonomy separately and merges results.
+    Queries each target taxonomy per state and merges results.
     If taxonomy_description is provided, only that taxonomy is queried.
     """
+    states_to_fetch = states if states else DEFAULT_STATES
     taxonomies_to_fetch = [taxonomy_description] if taxonomy_description else TARGET_TAXONOMIES
-    per_taxonomy_limit = max(1, limit // len(taxonomies_to_fetch))
+    per_taxonomy_limit = min(limit, 200)
 
     seen_npis: set[str] = set()
     all_raw: list[dict] = []
 
-    for taxonomy in taxonomies_to_fetch:
-        raw_results = _fetch_raw(taxonomy, state, per_taxonomy_limit)
-        for r in raw_results:
-            npi = r.get("number")
-            if npi and npi not in seen_npis:
-                seen_npis.add(npi)
-                all_raw.append(r)
+    for st in states_to_fetch:
+        for taxonomy in taxonomies_to_fetch:
+            raw_results = _fetch_raw(taxonomy, st, per_taxonomy_limit)
+            for r in raw_results:
+                npi = r.get("number")
+                if npi and npi not in seen_npis:
+                    seen_npis.add(npi)
+                    all_raw.append(r)
 
     saved: list[Provider] = []
 
@@ -140,7 +140,6 @@ def fetch_and_store_providers(
         if not parsed:
             continue
 
-        # Skip if already in DB -- do not overwrite pipeline state
         existing = session.exec(
             select(Provider).where(Provider.npi == parsed["npi"])
         ).first()

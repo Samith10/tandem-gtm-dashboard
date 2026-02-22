@@ -10,7 +10,7 @@ TARGET_SPECIALTIES = {
 }
 
 # States with historically high prior authorization burden
-HIGH_PA_BURDEN_STATES = {"NY", "CA", "TX", "FL"}
+HIGH_PA_BURDEN_STATES = {"NY", "CA", "TX", "FL", "IL", "PA", "NJ"}
 
 
 def score_provider(

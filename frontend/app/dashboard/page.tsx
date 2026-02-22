@@ -19,6 +19,8 @@ import FunnelChart from "@/components/charts/FunnelChart";
 import DropoffChart from "@/components/charts/DropoffChart";
 import Toast from "@/components/Toast";
 
+const ALL_STATES = ["NY", "CA", "TX", "FL", "IL", "PA", "NJ"];
+
 function StatCard({
   label,
   value,
@@ -41,10 +43,19 @@ function StatCard({
 }
 
 function SectionHeader({ title }: { title: string }) {
-  return <h2 className="font-sans font-semibold text-md text-text-primary" style={{ marginBottom: 12 }}>{title}</h2>;
+  return (
+    <h2 className="font-sans font-semibold text-md text-text-primary" style={{ marginBottom: 12 }}>
+      {title}
+    </h2>
+  );
 }
 
-function StageRow({ stage, count, avg_score, stale_count }: { stage: string; count: number; avg_score: number; stale_count: number }) {
+function StageRow({ stage, count, avg_score, stale_count }: {
+  stage: string;
+  count: number;
+  avg_score: number;
+  stale_count: number;
+}) {
   const scoreColor = avg_score >= 70 ? "#16a34a" : avg_score >= 50 ? "#d97706" : "#dc2626";
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #f0f0ec" }}>
@@ -68,6 +79,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
   const [running, setRunning] = useState(false);
+  const [selectedStates, setSelectedStates] = useState<string[]>(ALL_STATES);
   const [toast, setToast] = useState<string | null>(null);
 
   async function load() {
@@ -97,7 +109,7 @@ export default function DashboardPage() {
   async function handleFetch() {
     setFetching(true);
     try {
-      const res = await fetchProviders("NY", 50);
+      const res = await fetchProviders(selectedStates, 200);
       showToast(`Fetched ${res.fetched} providers from NPI registry`);
       await load();
     } finally {
@@ -130,9 +142,33 @@ export default function DashboardPage() {
       <div style={{ height: 48, background: "#ffffff", borderBottom: "1px solid #e8e8e4", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px", flexShrink: 0 }}>
         <h1 className="font-sans font-semibold text-md text-text-primary">Dashboard</h1>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {/* State toggles */}
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            {ALL_STATES.map((s) => {
+              const active = selectedStates.includes(s);
+              return (
+                <button
+                  key={s}
+                  onClick={() => setSelectedStates((prev) =>
+                    active ? prev.filter((x) => x !== s) : [...prev, s]
+                  )}
+                  className="mono text-2xs rounded transition-colors"
+                  style={{
+                    padding: "3px 7px",
+                    background: active ? "#0a0a0a" : "#f7f7f5",
+                    color: active ? "#ffffff" : "#6b6b6b",
+                    border: "1px solid",
+                    borderColor: active ? "#0a0a0a" : "#e8e8e4",
+                  }}
+                >
+                  {s}
+                </button>
+              );
+            })}
+          </div>
           <button
             onClick={handleFetch}
-            disabled={fetching}
+            disabled={fetching || selectedStates.length === 0}
             className="mono text-xs text-text-secondary border border-border rounded hover:border-text-muted transition-colors disabled:opacity-40"
             style={{ padding: "6px 12px" }}
           >

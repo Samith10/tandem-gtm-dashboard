@@ -1,32 +1,51 @@
-from typing import Optional
+from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlmodel import Session, select
+from sqlmodel import Session, select, func
+from datetime import datetime, timezone
 
 from database import get_session
 from models import Provider, ProviderRead, ProviderUpdate, PipelineStage
-from services.npi import fetch_and_store_providers
+from services.npi import fetch_and_store_providers, DEFAULT_STATES
 
 router = APIRouter()
 
 
 @router.post("/fetch", response_model=dict)
 def fetch_providers(
-    state: str = Query(default="NY", min_length=2, max_length=2),
+    states: Optional[List[str]] = Query(default=None),
     taxonomy_description: Optional[str] = Query(default=None),
-    limit: int = Query(default=50, ge=1, le=200),
+    limit: int = Query(default=200, ge=1, le=200),
     session: Session = Depends(get_session),
 ):
     """
     Pull providers from the NPI registry and store them.
+    Pass states= for specific states, or omit for all defaults.
     Safe to call repeatedly -- existing providers are not overwritten.
     """
+    resolved_states = [s.upper() for s in states] if states else DEFAULT_STATES
     providers = fetch_and_store_providers(
         session=session,
-        state=state.upper(),
+        states=resolved_states,
         taxonomy_description=taxonomy_description,
         limit=limit,
     )
     return {"fetched": len(providers)}
+
+
+@router.get("/count", response_model=dict)
+def count_providers(
+    stage: Optional[PipelineStage] = Query(default=None),
+    min_score: Optional[int] = Query(default=None, ge=0, le=100),
+    session: Session = Depends(get_session),
+):
+    """Return total provider count matching filters -- used for pagination."""
+    statement = select(func.count(Provider.id))
+    if stage:
+        statement = statement.where(Provider.stage == stage)
+    if min_score is not None:
+        statement = statement.where(Provider.icp_score >= min_score)
+    total = session.exec(statement).one()
+    return {"total": total or 0}
 
 
 @router.get("/", response_model=list[ProviderRead])
@@ -36,7 +55,7 @@ def list_providers(
     min_score: Optional[int] = Query(default=None, ge=0, le=100),
     max_score: Optional[int] = Query(default=None, ge=0, le=100),
     tag: Optional[str] = Query(default=None),
-    limit: int = Query(default=100, ge=1, le=500),
+    limit: int = Query(default=50, ge=1, le=5000),
     offset: int = Query(default=0, ge=0),
     session: Session = Depends(get_session),
 ):
@@ -52,7 +71,6 @@ def list_providers(
     if max_score is not None:
         statement = statement.where(Provider.icp_score <= max_score)
     if tag:
-        # workflow_tags is comma-separated -- substring match is sufficient
         statement = statement.where(Provider.workflow_tags.contains(tag))
 
     statement = statement.offset(offset).limit(limit)
@@ -83,9 +101,7 @@ def update_provider(
 
     update_data = updates.model_dump(exclude_unset=True)
 
-    # Track when the stage changes so staleness rules fire correctly
     if "stage" in update_data and update_data["stage"] != provider.stage:
-        from datetime import datetime, timezone
         provider.last_stage_change = datetime.now(tz=timezone.utc)
 
     for field, value in update_data.items():

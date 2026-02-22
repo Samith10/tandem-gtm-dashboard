@@ -1,25 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { listProviders, updateProvider, fetchProviders } from "@/lib/api";
+import { listProviders, updateProvider, fetchProviders, countProviders } from "@/lib/api";
 import type { Provider, PipelineStage } from "@/lib/types";
 import { PIPELINE_STAGES } from "@/lib/types";
 import OutreachModal from "@/components/OutreachModal";
 import Toast from "@/components/Toast";
 
+const ALL_STATES = ["NY", "CA", "TX", "FL", "IL", "PA", "NJ"];
+const PAGE_SIZE = 50;
+
 function ScoreBadge({ score }: { score: number }) {
   const color = score >= 70 ? "#16a34a" : score >= 50 ? "#d97706" : "#dc2626";
   return <span className="mono text-xs font-medium" style={{ color }}>{score}</span>;
-}
-
-function StageBadge({ stage }: { stage: PipelineStage }) {
-  const cls: Record<PipelineStage, string> = {
-    "Discovered":    "stage-discovered",
-    "Outreach Sent": "stage-outreach-sent",
-    "Demo Booked":   "stage-demo-booked",
-    "Activated":     "stage-activated",
-  };
-  return <span className={`tag ${cls[stage]}`}>{stage}</span>;
 }
 
 function TagChips({ tags }: { tags: string }) {
@@ -64,29 +57,46 @@ function providerName(p: Provider): string {
 
 export default function ProvidersPage() {
   const [providers, setProviders] = useState<Provider[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [fetching, setFetching] = useState(false);
   const [stageFilter, setStageFilter] = useState<PipelineStage | "">("");
   const [minScore, setMinScore] = useState("");
   const [search, setSearch] = useState("");
+  const [selectedStates, setSelectedStates] = useState<string[]>(ALL_STATES);
   const [outreachTarget, setOutreachTarget] = useState<Provider | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
-  async function load() {
+  async function load(p: number) {
     setLoading(true);
     try {
-      const data = await listProviders({
-        stage: stageFilter || undefined,
-        min_score: minScore ? Number(minScore) : undefined,
-        limit: 200,
-      });
+      const [data, countRes] = await Promise.all([
+        listProviders({
+          stage: stageFilter || undefined,
+          min_score: minScore ? Number(minScore) : undefined,
+          limit: PAGE_SIZE,
+          offset: p * PAGE_SIZE,
+        }),
+        countProviders({
+          stage: stageFilter || undefined,
+          min_score: minScore ? Number(minScore) : undefined,
+        }),
+      ]);
       setProviders(data);
+      setTotal(countRes.total);
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => { load(); }, [stageFilter, minScore]);
+  useEffect(() => {
+    setPage(0);
+  }, [stageFilter, minScore]);
+
+  useEffect(() => {
+    load(page);
+  }, [page, stageFilter, minScore]);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -101,14 +111,16 @@ export default function ProvidersPage() {
   async function handleFetch() {
     setFetching(true);
     try {
-      const res = await fetchProviders("NY", 50);
+      const res = await fetchProviders(selectedStates, 200);
       showToast(`Fetched ${res.fetched} providers`);
-      await load();
+      setPage(0);
+      await load(0);
     } finally {
       setFetching(false);
     }
   }
 
+  // Client-side search only within the current page
   const visible = providers.filter((p) => {
     if (!search) return true;
     const q = search.toLowerCase();
@@ -119,19 +131,44 @@ export default function ProvidersPage() {
     );
   });
 
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Topbar */}
       <div style={{ height: 48, background: "#ffffff", borderBottom: "1px solid #e8e8e4", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 24px", flexShrink: 0 }}>
         <h1 className="font-sans font-semibold text-md text-text-primary">Providers</h1>
-        <button
-          onClick={handleFetch}
-          disabled={fetching}
-          className="mono text-xs text-white bg-accent rounded hover:opacity-90 transition-opacity disabled:opacity-40"
-          style={{ padding: "6px 12px" }}
-        >
-          {fetching ? "Fetching..." : "Fetch Providers"}
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {ALL_STATES.map((s) => {
+            const active = selectedStates.includes(s);
+            return (
+              <button
+                key={s}
+                onClick={() => setSelectedStates((prev) =>
+                  active ? prev.filter((x) => x !== s) : [...prev, s]
+                )}
+                className="mono text-2xs rounded transition-colors"
+                style={{
+                  padding: "3px 7px",
+                  background: active ? "#0a0a0a" : "#f7f7f5",
+                  color: active ? "#ffffff" : "#6b6b6b",
+                  border: "1px solid",
+                  borderColor: active ? "#0a0a0a" : "#e8e8e4",
+                }}
+              >
+                {s}
+              </button>
+            );
+          })}
+          <button
+            onClick={handleFetch}
+            disabled={fetching || selectedStates.length === 0}
+            className="mono text-xs text-white bg-accent rounded hover:opacity-90 transition-opacity disabled:opacity-40"
+            style={{ padding: "6px 12px" }}
+          >
+            {fetching ? "Fetching..." : "Fetch Providers"}
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -166,9 +203,34 @@ export default function ProvidersPage() {
           <option value="70">Score 70+</option>
           <option value="50">Score 50+</option>
         </select>
-        <span className="mono text-xs text-text-muted" style={{ marginLeft: "auto" }}>
-          {visible.length} providers
-        </span>
+
+        {/* Pagination controls */}
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+          <span className="mono text-xs text-text-muted">
+            {total > 0 ? `${page * PAGE_SIZE + 1}-${Math.min((page + 1) * PAGE_SIZE, total)} of ${total}` : "0 providers"}
+          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <button
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={page === 0}
+              className="mono text-xs text-text-secondary border border-border rounded hover:border-text-muted transition-colors disabled:opacity-30"
+              style={{ padding: "4px 10px" }}
+            >
+              Prev
+            </button>
+            <span className="mono text-xs text-text-muted" style={{ padding: "0 4px" }}>
+              {page + 1} / {totalPages || 1}
+            </span>
+            <button
+              onClick={() => setPage((p) => p + 1)}
+              disabled={page >= totalPages - 1}
+              className="mono text-xs text-text-secondary border border-border rounded hover:border-text-muted transition-colors disabled:opacity-30"
+              style={{ padding: "4px 10px" }}
+            >
+              Next
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Table */}
@@ -224,7 +286,7 @@ export default function ProvidersPage() {
                   </td>
                   <td style={{ padding: "12px 16px" }}>
                     <button
-                      onClick={() => { setOutreachTarget(p); }}
+                      onClick={() => setOutreachTarget(p)}
                       className="mono text-2xs text-accent border border-accent rounded hover:bg-accent hover:text-white transition-colors"
                       style={{ padding: "4px 8px", whiteSpace: "nowrap" }}
                     >

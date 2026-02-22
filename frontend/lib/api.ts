@@ -28,8 +28,12 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 // -- Providers --
 
-export function fetchProviders(state: string, limit = 50): Promise<{ fetched: number }> {
-  const params = new URLSearchParams({ state, limit: String(limit) });
+export function fetchProviders(
+  states: string[],
+  limit = 200
+): Promise<{ fetched: number }> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  states.forEach((s) => params.append("states", s));
   return request(`/providers/fetch?${params}`, { method: "POST" });
 }
 
@@ -51,6 +55,16 @@ export function listProviders(filters?: {
   if (filters?.limit != null) params.set("limit", String(filters.limit));
   if (filters?.offset != null) params.set("offset", String(filters.offset));
   return request(`/providers/?${params}`);
+}
+
+export function countProviders(filters?: {
+  stage?: PipelineStage;
+  min_score?: number;
+}): Promise<{ total: number }> {
+  const params = new URLSearchParams();
+  if (filters?.stage) params.set("stage", filters.stage);
+  if (filters?.min_score != null) params.set("min_score", String(filters.min_score));
+  return request(`/providers/count?${params}`);
 }
 
 export function getProvider(id: number): Promise<Provider> {
@@ -117,7 +131,6 @@ export function getWorkflowEventsSummary(): Promise<Record<string, number>> {
 
 // -- AI --
 
-// Returns the raw EventSource URL -- the component opens its own SSE connection
 export function getOutreachStreamUrl(providerId: number): string {
   return `${BASE_URL}/ai/outreach/${providerId}`;
 }
