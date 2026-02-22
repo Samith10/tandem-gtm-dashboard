@@ -40,7 +40,7 @@ export default function Sidebar() {
           color: "#ffffff",
           letterSpacing: "-0.02em",
         }}>
-          tandem
+          Tandem
         </span>
         <span style={{
           fontFamily: "Geist Mono, monospace",
@@ -48,7 +48,7 @@ export default function Sidebar() {
           color: "#8a8a8a",
           marginTop: 1,
         }}>
-          gtm
+          Technologies
         </span>
       </div>
 
@@ -87,7 +87,7 @@ export default function Sidebar() {
           Provider Network Intelligence
         </p>
         <p style={{ fontFamily: "Geist Mono, monospace", fontSize: 10, color: "#8a8a8a", opacity: 0.5, margin: "2px 0 0" }}>
-          v1.0.0
+          v3.3.0
         </p>
       </div>
     </aside>

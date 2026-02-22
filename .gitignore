@@ -11,6 +11,8 @@ venv/
 
 # Environment variables
 .env
+.env.local
+.env.production
 
 # Node.js
 node_modules/
@@ -24,3 +26,11 @@ dist/
 build/
 .next/
 out/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
