@@ -15,7 +15,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Tandem GTM Dashboard API",
+    title="Tandem Dashboard API",
     version="1.0.0",
     lifespan=lifespan,
 )

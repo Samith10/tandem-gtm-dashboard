@@ -1,7 +1,7 @@
 from sqlmodel import SQLModel, Session, create_engine
 import os
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./tandem_gtm.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./tandem.db")
 
 # "check_same_thread" is SQLite-only -- safe to disable for FastAPI's async context
 engine = create_engine(

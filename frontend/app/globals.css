@@ -1,0 +1,148 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* -- Geist Sans -- */
+@font-face {
+  font-family: "Geist";
+  src: url("https://cdn.jsdelivr.net/npm/geist@1.3.0/dist/fonts/geist-sans/Geist-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist";
+  src: url("https://cdn.jsdelivr.net/npm/geist@1.3.0/dist/fonts/geist-sans/Geist-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist";
+  src: url("https://cdn.jsdelivr.net/npm/geist@1.3.0/dist/fonts/geist-sans/Geist-SemiBold.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* -- Geist Mono -- */
+@font-face {
+  font-family: "Geist Mono";
+  src: url("https://cdn.jsdelivr.net/npm/geist@1.3.0/dist/fonts/geist-mono/GeistMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("https://cdn.jsdelivr.net/npm/geist@1.3.0/dist/fonts/geist-sans/Geist-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* -- Base reset -- */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: #f7f7f5;
+  color: #0a0a0a;
+  font-family: "Geist", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+/* -- Scrollbar -- */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #e8e8e4;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #d0d0cc;
+}
+
+/* -- Utility classes -- */
+.mono {
+  font-family: "Geist Mono", monospace;
+}
+
+.stat-card {
+  background: #ffffff;
+  border: 1px solid #e8e8e4;
+  border-radius: 7px;
+  padding: 20px;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  font-family: "Geist Mono", monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+.tag-high-priority {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.tag-high-value {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.tag-stale {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.tag-escalated {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.tag-assigned {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+/* Stage badge colors */
+.stage-discovered {
+  background: #f7f7f5;
+  color: #6b6b6b;
+}
+
+.stage-outreach-sent {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.stage-demo-booked {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.stage-activated {
+  background: #f0fdf4;
+  color: #16a34a;
+}
