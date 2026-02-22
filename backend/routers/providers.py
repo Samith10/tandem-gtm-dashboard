@@ -1,6 +1,6 @@
-from typing import Optional, List
+from typing import Optional, List, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlmodel import Session, select, func
+from sqlmodel import Session, select, func, col, case
 from datetime import datetime, timezone
 
 from database import get_session
@@ -8,6 +8,97 @@ from models import Provider, ProviderRead, ProviderUpdate, PipelineStage
 from services.npi import fetch_and_store_providers, DEFAULT_STATES
 
 router = APIRouter()
+
+# Valid sort columns and their corresponding Provider fields
+SORT_FIELDS = {
+    "score":          Provider.icp_score,
+    "discovered_at":  Provider.discovered_at,
+    "last_stage_change": Provider.last_stage_change,
+    "last_outreach_at":  Provider.last_outreach_at,
+    "name":           None,  # handled separately -- coalesce org/last name
+}
+
+# Practice size bucket -> provider_count_at_address ranges
+PRACTICE_SIZE_RANGES = {
+    "solo":  (1, 1),
+    "small": (2, 3),
+    "group": (4, None),
+}
+
+
+def _apply_filters(
+    statement,
+    stage: Optional[PipelineStage],
+    states: Optional[List[str]],
+    min_score: Optional[int],
+    max_score: Optional[int],
+    tag: Optional[str],
+    npi_type: Optional[int],
+    has_outreach: Optional[bool],
+    practice_size: Optional[str],
+):
+    """Apply all shared filter conditions to a SQLModel select statement."""
+    if stage:
+        statement = statement.where(Provider.stage == stage)
+
+    if states:
+        upper = [s.upper() for s in states]
+        statement = statement.where(col(Provider.state).in_(upper))
+
+    if min_score is not None:
+        statement = statement.where(Provider.icp_score >= min_score)
+    if max_score is not None:
+        statement = statement.where(Provider.icp_score <= max_score)
+
+    if tag:
+        statement = statement.where(col(Provider.workflow_tags).contains(tag))
+
+    if npi_type is not None:
+        statement = statement.where(Provider.npi_type == npi_type)
+
+    if has_outreach is True:
+        statement = statement.where(Provider.last_outreach_at.isnot(None))
+    elif has_outreach is False:
+        statement = statement.where(Provider.last_outreach_at.is_(None))
+
+    if practice_size and practice_size in PRACTICE_SIZE_RANGES:
+        lo, hi = PRACTICE_SIZE_RANGES[practice_size]
+        statement = statement.where(Provider.provider_count_at_address >= lo)
+        if hi is not None:
+            statement = statement.where(Provider.provider_count_at_address <= hi)
+
+    return statement
+
+
+def _apply_sort(
+    statement,
+    sort_by: str,
+    sort_dir: str,
+):
+    """Apply ORDER BY to a list statement. Nulls always sort last."""
+    asc = sort_dir == "asc"
+
+    if sort_by == "name":
+        # Coalesce organization_name and last_name so both NPI types sort sensibly
+        name_col = func.coalesce(Provider.organization_name, Provider.last_name, "")
+        statement = statement.order_by(
+            name_col.asc() if asc else name_col.desc()
+        )
+        return statement
+
+    field = SORT_FIELDS.get(sort_by, Provider.icp_score)
+
+    if sort_by == "last_outreach_at":
+        # Nulls last in both directions
+        null_last = Provider.last_outreach_at.is_(None)
+        if asc:
+            statement = statement.order_by(null_last, field.asc())
+        else:
+            statement = statement.order_by(null_last, field.desc())
+        return statement
+
+    statement = statement.order_by(field.asc() if asc else field.desc())
+    return statement
 
 
 @router.post("/fetch", response_model=dict)
@@ -35,15 +126,21 @@ def fetch_providers(
 @router.get("/count", response_model=dict)
 def count_providers(
     stage: Optional[PipelineStage] = Query(default=None),
+    states: Optional[List[str]] = Query(default=None),
     min_score: Optional[int] = Query(default=None, ge=0, le=100),
+    max_score: Optional[int] = Query(default=None, ge=0, le=100),
+    tag: Optional[str] = Query(default=None),
+    npi_type: Optional[int] = Query(default=None),
+    has_outreach: Optional[bool] = Query(default=None),
+    practice_size: Optional[str] = Query(default=None),
     session: Session = Depends(get_session),
 ):
     """Return total provider count matching filters -- used for pagination."""
     statement = select(func.count(Provider.id))
-    if stage:
-        statement = statement.where(Provider.stage == stage)
-    if min_score is not None:
-        statement = statement.where(Provider.icp_score >= min_score)
+    statement = _apply_filters(
+        statement, stage, states, min_score, max_score,
+        tag, npi_type, has_outreach, practice_size,
+    )
     total = session.exec(statement).one()
     return {"total": total or 0}
 
@@ -51,28 +148,26 @@ def count_providers(
 @router.get("/", response_model=list[ProviderRead])
 def list_providers(
     stage: Optional[PipelineStage] = Query(default=None),
-    state: Optional[str] = Query(default=None),
+    states: Optional[List[str]] = Query(default=None),
     min_score: Optional[int] = Query(default=None, ge=0, le=100),
     max_score: Optional[int] = Query(default=None, ge=0, le=100),
     tag: Optional[str] = Query(default=None),
+    npi_type: Optional[int] = Query(default=None),
+    has_outreach: Optional[bool] = Query(default=None),
+    practice_size: Optional[str] = Query(default=None),
+    sort_by: str = Query(default="score"),
+    sort_dir: Literal["asc", "desc"] = Query(default="desc"),
     limit: int = Query(default=50, ge=1, le=5000),
     offset: int = Query(default=0, ge=0),
     session: Session = Depends(get_session),
 ):
-    """List providers with optional filters for stage, state, score range, and tag."""
+    """List providers with filtering, sorting, and pagination."""
     statement = select(Provider)
-
-    if stage:
-        statement = statement.where(Provider.stage == stage)
-    if state:
-        statement = statement.where(Provider.state == state.upper())
-    if min_score is not None:
-        statement = statement.where(Provider.icp_score >= min_score)
-    if max_score is not None:
-        statement = statement.where(Provider.icp_score <= max_score)
-    if tag:
-        statement = statement.where(Provider.workflow_tags.contains(tag))
-
+    statement = _apply_filters(
+        statement, stage, states, min_score, max_score,
+        tag, npi_type, has_outreach, practice_size,
+    )
+    statement = _apply_sort(statement, sort_by, sort_dir)
     statement = statement.offset(offset).limit(limit)
     return session.exec(statement).all()
 

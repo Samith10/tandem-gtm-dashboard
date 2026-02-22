@@ -21,7 +21,7 @@ I built this to show what that system could look like.
 
 **ICP scoring** scores each provider 0 to 100 based on specialty match, practice size, state PA burden, NPI type, and enumeration recency. The model is designed around Tandem's ideal customer: independent primary care practices with high prior authorization volume.
 
-**HubSpot style pipeline** is a four stage CRM board (Discovered, Outreach Sent, Demo Booked, Activated) with inline stage transitions, rep assignment, and drop off visibility across the funnel.
+**HubSpot style CRM pipeline** is a four stage CRM board (Discovered, Outreach Sent, Demo Booked, Activated) with inline stage transitions, rep assignment, and drop off visibility across the funnel.
 
 **Workflow automation** consists of five trigger based rules that evaluate the full provider set, apply tags, assign reps, and log a full audit trail. Designed to mirror the kind of logic you would build in n8n or Clay.
 
