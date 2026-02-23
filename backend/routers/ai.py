@@ -29,27 +29,29 @@ def _build_prompt(provider: Provider) -> str:
         else f"a practice with approximately {provider.provider_count_at_address} providers"
     )
 
-    return f"""You are a GTM outreach specialist at Tandem, a healthcare AI company that helps independent medical practices eliminate prior authorization burden.
+    return f"""You are writing a short cold outreach email on behalf of Tandem, a company that helps independent medical practices spend less time on prior authorizations.
 
-Write a short, personalized cold outreach email to the following provider. The email should:
-- Be 3-4 sentences maximum
-- Open with a specific reference to their specialty and practice context
-- Clearly state what Tandem does in one sentence (eliminate prior auth burden using AI)
-- End with a single, low-friction call to action (a 15-minute call)
-- Sound human, direct, and respectful of their time
-- Never use hollow phrases like "I hope this email finds you well" or "I wanted to reach out"
-- Never use em dashes
+The problem Tandem solves: prior authorizations take hours of staff time every week. Doctors and their teams fill out forms, make phone calls, and wait on hold just to get treatments approved. Tandem automates that process so the practice gets that time back.
+
+Write a 3 to 4 sentence email to the provider below. Follow these rules exactly:
+
+- Write like a real person, not a salesperson. Short sentences. Plain words.
+- Open by briefly acknowledging the reality of prior auth work for their specific specialty and practice type. Do not be dramatic about it, just factual.
+- In one sentence, explain what Tandem does in plain terms. No buzzwords. No "revolutionary", "cutting edge", "streamline", "leverage", or similar words.
+- End with a simple ask for a 15 minute call. No pressure. No urgency language.
+- Do not use em dashes, hyphens in phrases, or bullet points.
+- Do not use filler phrases like "I hope this finds you well", "I wanted to reach out", "I came across your practice", or anything similar.
+- Do not make promises or use absolute language like "eliminate", "never again", "completely", "guaranteed".
+- No emojis.
+- Write in first person as a Tandem team member.
 
 Provider details:
-- Practice name: {name}
-- Contact name: {contact or "not available"}
+- Name: {contact or name}
 - Specialty: {specialty}
 - Location: {location or "not available"}
 - Practice size: {practice_size}
-- ICP score: {provider.icp_score}/100
 
-Return only the email body. No subject line. No sign-off name."""
-
+Return only the email body. No subject line. No sign-off name. No extra commentary."""
 
 def _stream_response(provider: Provider):
     """Yield SSE-formatted chunks from the active LLM adapter."""

@@ -110,7 +110,7 @@ class GroqAdapter:
 # -- Gemini --
 
 class GeminiAdapter:
-    DEFAULT_MODEL = "gemini-1.5-flash"
+    DEFAULT_MODEL = "gemini-2.5-flash-lite"
 
     def __init__(self):
         import google.generativeai as genai
