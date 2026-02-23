@@ -1,11 +1,12 @@
 from typing import Optional, List, Literal
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlmodel import Session, select, func, col, case
 from datetime import datetime, timezone
 
 from database import get_session
 from models import Provider, ProviderRead, ProviderUpdate, PipelineStage
 from services.npi import fetch_and_store_providers, DEFAULT_STATES
+from services.hubspot import sync_contact
 
 router = APIRouter()
 
@@ -103,6 +104,7 @@ def _apply_sort(
 
 @router.post("/fetch", response_model=dict)
 def fetch_providers(
+    background: BackgroundTasks,
     states: Optional[List[str]] = Query(default=None),
     taxonomy_description: Optional[str] = Query(default=None),
     limit: int = Query(default=200, ge=1, le=200),
@@ -120,6 +122,13 @@ def fetch_providers(
         taxonomy_description=taxonomy_description,
         limit=limit,
     )
+    # Sync new providers to HubSpot in the background -- never blocks fetch
+    def _sync_all():
+        for p in providers:
+            sync_contact(p)
+
+    background.add_task(_sync_all)
+
     return {"fetched": len(providers)}
 
 
@@ -205,6 +214,10 @@ def update_provider(
     session.add(provider)
     session.commit()
     session.refresh(provider)
+
+    # Sync updated provider to HubSpot -- best-effort, never blocks update
+    sync_contact(provider)
+
     return provider
 
 
