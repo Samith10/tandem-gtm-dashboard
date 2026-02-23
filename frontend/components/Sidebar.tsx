@@ -87,7 +87,7 @@ export default function Sidebar() {
           Provider Network Intelligence
         </p>
         <p style={{ fontFamily: "Geist Mono, monospace", fontSize: 10, color: "#8a8a8a", opacity: 0.5, margin: "2px 0 0" }}>
-          v3.4.0
+          v3.4.1
         </p>
       </div>
     </aside>
